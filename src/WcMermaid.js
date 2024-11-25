@@ -1,21 +1,26 @@
-import mermaid from 'mermaid';
-
-const mermaidAPI = mermaid.mermaidAPI;
-
 /**
  * WcMermaid
  * @class
  */
 export class WcMermaid extends HTMLElement {
+  // A promise created by the dynamic import of Mermaid, which resolves to the Mermaid API.
+  #mermaidApiPromise
+
   constructor() {
     super();
 
     this.attachShadow({ mode: 'open' });
     this.__renderGraph = this.__renderGraph.bind(this);
 
-    mermaidAPI.initialize({
-      logLevel: 'none',
-      startOnLoad: false,
+    this.#mermaidApiPromise = new Promise(async (resolve) => {
+      const mermaidApiModule = await import('mermaid/dist/mermaid.js');
+      // We now have access to the dynamically-loaded Mermaid module. Store its API for use by the renderer.
+      const mermaidApi = mermaidApiModule.default;
+      mermaidApi.initialize({
+        logLevel: 'none',
+        startOnLoad: false,
+      });
+      resolve(mermaidApi);
     });
   }
 
@@ -42,16 +47,19 @@ export class WcMermaid extends HTMLElement {
     this.updated = new Promise(resolve => {
       try {
         if (this.__textContent !== '') {
-          mermaidAPI.render(
-            'graph',
-            this.__textContent,
-            /** @param {string} svg */ svg => {
-              if (this.shadowRoot) {
-                this.shadowRoot.innerHTML = svg;
+          // Delay rendering until the Mermaid API is loaded.
+          this.#mermaidApiPromise.then((mermaidApi) => {
+            mermaidApi.render(
+              'graph',
+              this.__textContent,
+              /** @param {string} svg */ svg => {
+                if (this.shadowRoot) {
+                  this.shadowRoot.innerHTML = svg;
+                }
+                resolve();
               }
-              resolve();
-            }
-          );
+            );
+          });
         } else {
           if (this.shadowRoot) {
             this.shadowRoot.innerHTML = '';
