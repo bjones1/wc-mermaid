@@ -13,7 +13,7 @@ export class WcMermaid extends HTMLElement {
     this.__renderGraph = this.__renderGraph.bind(this);
 
     this.#mermaidApiPromise = new Promise(async (resolve) => {
-      const mermaidApiModule = await import('mermaid/dist/mermaid.js');
+      const mermaidApiModule = await import('mermaid/dist/mermaid.core.mjs');
       // We now have access to the dynamically-loaded Mermaid module. Store its API for use by the renderer.
       const mermaidApi = mermaidApiModule.default;
       mermaidApi.initialize({
@@ -44,32 +44,28 @@ export class WcMermaid extends HTMLElement {
 
   __renderGraph() {
     /** @type {Promise<void>} */
-    this.updated = new Promise(resolve => {
-      try {
-        if (this.__textContent !== '') {
+    this.updated = (async () => {
+      if (this.__textContent !== '') {
+        if (this.shadowRoot) {
           // Delay rendering until the Mermaid API is loaded.
-          this.#mermaidApiPromise.then((mermaidApi) => {
-            mermaidApi.render(
-              'graph',
-              this.__textContent,
-              /** @param {string} svg */ svg => {
-                if (this.shadowRoot) {
-                  this.shadowRoot.innerHTML = svg;
-                }
-                resolve();
-              }
-            );
-          });
-        } else {
-          if (this.shadowRoot) {
-            this.shadowRoot.innerHTML = '';
-          }
-          resolve();
+          const mermaidApi = await this.#mermaidApiPromise;
+          // Create the element that will contain the rendered graph.
+          this.shadowRoot.innerHTML = '';
+          const div = document.createElement('div');
+          div.id = "graph";
+          this.shadowRoot.appendChild(div);
+          const renderResult = await mermaidApi.render(
+            'graph',
+            this.__textContent
+          );
+          div.innerHTML = renderResult.svg;
         }
-      } catch (_) {
-        resolve();
+      } else {
+        if (this.shadowRoot) {
+          this.shadowRoot.innerHTML = '';
+        }
       }
-    });
+    })();
   }
 
   __observeTextNodes() {
